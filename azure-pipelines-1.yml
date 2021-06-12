@@ -6,29 +6,62 @@
 trigger:
 - main
 
-pool:
-  vmImage: 'vs2017-win2016'
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    pool:
+      vmImage: 'vs2017-win2016'
 
-variables:
-  solution: '**/*.sln'
-  buildPlatform: 'Any CPU'
-  buildConfiguration: 'Release'
+    variables:
+      solution: '**/*.sln'
+      buildPlatform: 'Any CPU'
+      buildConfiguration: 'Release'
 
-steps:
-- task: NuGetToolInstaller@1
+    steps:
+    - task: NuGetToolInstaller@1
 
-- task: NuGetCommand@2
+    - task: NuGetCommand@2
+      inputs:
+        restoreSolution: '$(solution)'
+
+    - task: VSBuild@1
+      inputs:
+        solution: '$(solution)'
+        msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactStagingDirectory)"'
+        platform: '$(buildPlatform)'
+        configuration: '$(buildConfiguration)'
+
+    - task: VSTest@2
+      inputs:
+        platform: '$(buildPlatform)'
+        configuration: '$(buildConfiguration)'
+
+- task: PublishBuildArtifacts@1
   inputs:
-    restoreSolution: '$(solution)'
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'
+stages:
+- stage: Deploy
+  jobs:
+  - job: Deploy
+    pool:
+      vmImage: 'vs2017-win2016'
 
-- task: VSBuild@1
-  inputs:
-    solution: '$(solution)'
-    msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactStagingDirectory)"'
-    platform: '$(buildPlatform)'
-    configuration: '$(buildConfiguration)'
 
-- task: VSTest@2
-  inputs:
-    platform: '$(buildPlatform)'
-    configuration: '$(buildConfiguration)'
+
+    steps:
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: 'current'
+          downloadType: 'single'
+          artifactName: 'drop'
+          downloadPath: '$(System.ArtifactsDirectory)'
+      - task: AzureRmWebAppDeployment@4
+        inputs:
+          ConnectionType: 'AzureRM'
+          azureSubscription: 'sandhyapro'
+          appType: 'webApp'
+          WebAppName: 'sanarewebapp'
+          packageForLinux: '$(System.ArtifactsDirectory)/drop/*.zip'
