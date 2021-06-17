@@ -7,6 +7,7 @@ namespace PartsUnlimited.Models
     {
         public int CategoryId { get; set; }
         // my third commit
+        //change
         [Required]
         public string Name { get; set; }
 
